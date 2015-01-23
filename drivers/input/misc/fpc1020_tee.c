@@ -427,9 +427,6 @@ static void set_fingerprintd_nice(int nice)
 static int fpc1020_suspend(struct platform_device* pdev, pm_message_t mesg)
 {
 	/* Escalate fingerprintd priority when screen is off */
- 	if (fpc1020->is_display_on())
- 		set_fingerprintd_nice(0);
- 	else
  		set_fingerprintd_nice(-1);
     
     return 0;
