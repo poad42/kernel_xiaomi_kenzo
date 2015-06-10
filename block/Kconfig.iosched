@@ -160,17 +160,11 @@ config DEFAULT_IOSCHED
 	default "cfq" if DEFAULT_CFQ
 	default "bfq" if DEFAULT_BFQ
 	default "noop" if DEFAULT_NOOP
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
 	default "fiops" if DEFAULT_FIOPS
 	default "sio" if DEFAULT_SIO
 	default "zen" if DEFAULT_ZEN
->>>>>>> d39105ac5926... block: scheduler: add ZEN
-=======
 	default "fiops" if DEFAULT_FIOPS
 	default "sio" if DEFAULT_SIO
->>>>>>> e05439ad2d5d... Add SIO and FIOPS i/o schedulers
 
 endmenu
 
