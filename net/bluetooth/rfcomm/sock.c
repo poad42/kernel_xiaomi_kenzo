@@ -333,6 +333,8 @@ static int rfcomm_sock_bind(struct socket *sock, struct sockaddr *addr, int addr
 	struct sock *sk = sock->sk;
 	int len, err = 0;
 
+	BT_DBG("sk %pK %pMR", sk, &sa->rc_bdaddr);
+
 	if (!addr || addr->sa_family != AF_BLUETOOTH)
 		return -EINVAL;
 
