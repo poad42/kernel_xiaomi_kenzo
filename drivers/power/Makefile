@@ -74,3 +74,4 @@ obj-$(CONFIG_MSM_BCL_PERIPHERAL_CTL) += bcl_peripheral.o
 obj-$(CONFIG_QNS_SYSTEM)        += qns_system.o
 obj-$(CONFIG_POWER_RESET)	+= reset/
 obj-y				+= qcom/
+obj-$(CONFIG_FORCE_FAST_CHARGE) += fastcharge.o
