@@ -8038,11 +8038,8 @@ static int smbchg_probe(struct spmi_device *spmi)
 			smbchg_parallel_usb_en_work);
 	INIT_DELAYED_WORK(&chip->vfloat_adjust_work, smbchg_vfloat_adjust_work);
 	INIT_DELAYED_WORK(&chip->hvdcp_det_work, smbchg_hvdcp_det_work);
-<<<<<<< HEAD
 	INIT_DELAYED_WORK(&chip->reg_work, smbchg_reg_work);
-=======
 	INIT_DELAYED_WORK(&chip->redetect_work, smbchg_redetect_work);
->>>>>>> c0aa363... Fix missing boardtemp thermal sensor
 	init_completion(&chip->src_det_lowered);
 	init_completion(&chip->src_det_raised);
 	init_completion(&chip->usbin_uv_lowered);
