@@ -337,14 +337,13 @@ recurs_l:
 		gf_dev->new_driver = 0;
 		gf_hw_reset(gf_dev, 70);
 		break;
-	case GF_IOC_RESET_NEW:
-		gf_dev->new_driver = 1;
-		retval = __get_user(delay, (u32 __user *) arg);
-		if (retval == 0)
-			gf_hw_reset(gf_dev, delay);
-		else
-			pr_warn("Failed to get reset delay from user. retval = %d\n", retval);
-		break;
+case GF_IOC_RESET_NEW:
+ 		retval = __get_user(delay, (u32 __user *) arg);
+ 		if (retval == 0)
+ 			gf_hw_reset(gf_dev, delay);
+ 		else
+ 			pr_warn("Failed to get reset delay from user. retval = %d\n", retval);
+ 		break;
 	case GF_IOC_COOLBOOT:
 		gf_power_off(gf_dev);
 		mdelay(5);
