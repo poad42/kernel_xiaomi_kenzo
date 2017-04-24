@@ -3,7 +3,6 @@
  *
  * Copyright (C) 2007 Google Incorporated
  * Copyright (c) 2008-2017, The Linux Foundation. All rights reserved.
- * Copyright (C) 2015 XiaoMi, Inc.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -52,16 +51,11 @@
 #include <linux/qcom_iommu.h>
 #include <linux/msm_iommu_domains.h>
 
-#ifdef CONFIG_MACH_XIAOMI_KENZO
 #include "mdss_dsi.h"
-#endif
 #include "mdss_fb.h"
 #include "mdss_mdp_splash_logo.h"
 #define CREATE_TRACE_POINTS
 #include "mdss_debug.h"
-
-#include "mdss_livedisplay.h"
-#include "mdss_mdp.h"
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MDSS_FB_NUM 3
@@ -77,6 +71,13 @@
 
 #define BLANK_FLAG_LP	FB_BLANK_NORMAL
 #define BLANK_FLAG_ULP	FB_BLANK_VSYNC_SUSPEND
+
+#define MDSS_BRIGHT_TO_BL_DIMMER(out, v) do {\
+					out = ((v) * (v) * 255  / 4095 + (v) * (255 - (v)) / 32);\
+					} while (0)
+
+bool backlight_dimmer = true;
+module_param(backlight_dimmer, bool, 0755);
 
 static struct fb_info *fbi_list[MAX_FBI_LIST];
 static int fbi_list_index;
@@ -137,10 +138,14 @@ static void mdss_fb_set_bl_brightness(struct led_classdev *led_cdev,
 	if (value > mfd->panel_info->brightness_max)
 		value = mfd->panel_info->brightness_max;
 
-	/* This maps android backlight level 0 to 255 into
-	   driver backlight level 0 to bl_max with rounding */
-	MDSS_BRIGHT_TO_BL(bl_lvl, value, mfd->panel_info->bl_max,
-				mfd->panel_info->brightness_max);
+	if (backlight_dimmer) {
+		MDSS_BRIGHT_TO_BL_DIMMER(bl_lvl, value);
+	} else {
+		/* This maps android backlight level 0 to 255 into
+		   driver backlight level 0 to bl_max with rounding */
+		MDSS_BRIGHT_TO_BL(bl_lvl, value, mfd->panel_info->bl_max,
+					mfd->panel_info->brightness_max);
+	}
 
 	if (!bl_lvl && value)
 		bl_lvl = 1;
@@ -781,11 +786,8 @@ static ssize_t mdss_fb_get_dfps_mode(struct device *dev,
 
 	return ret;
 }
-
-#ifdef CONFIG_MACH_XIAOMI_KENZO
-extern void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
+extern  void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
 			struct dsi_panel_cmds *pcmds);
-#endif
 
 static DEVICE_ATTR(msm_fb_type, S_IRUGO, mdss_fb_get_type, NULL);
 static DEVICE_ATTR(msm_fb_split, S_IRUGO | S_IWUSR, mdss_fb_show_split,
@@ -828,8 +830,7 @@ static int mdss_fb_create_sysfs(struct msm_fb_data_type *mfd)
 	rc = sysfs_create_group(&mfd->fbi->dev->kobj, &mdss_fb_attr_group);
 	if (rc)
 		pr_err("sysfs group creation failed, rc=%d\n", rc);
-
-	return mdss_livedisplay_create_sysfs(mfd);
+	return rc;
 }
 
 static void mdss_fb_remove_sysfs(struct msm_fb_data_type *mfd)
@@ -1479,11 +1480,7 @@ static int mdss_fb_blank_blank(struct msm_fb_data_type *mfd,
 
 	return ret;
 }
-
-#ifdef CONFIG_MACH_XIAOMI_KENZO
 int esd_backlight = 0;
-#endif
-
 static int mdss_fb_blank_unblank(struct msm_fb_data_type *mfd)
 {
 	int ret = 0;
@@ -1534,7 +1531,6 @@ static int mdss_fb_blank_unblank(struct msm_fb_data_type *mfd)
 		mutex_lock(&mfd->bl_lock);
 		if (!mfd->allow_bl_update) {
 			mfd->allow_bl_update = true;
-#ifdef CONFIG_MACH_XIAOMI_KENZO
 			/*
 			 * If in AD calibration mode then frameworks would not
 			 * be allowed to update backlight hence post unblank
@@ -1547,26 +1543,6 @@ static int mdss_fb_blank_unblank(struct msm_fb_data_type *mfd)
 				cur_panel_dead) && esd_backlight)
 				mdss_fb_set_backlight(mfd, mfd->unset_bl_level);
 				esd_backlight = 0;
-#else
-			/*
-			 * 1.) If in AD calibration mode then frameworks would
-			 * not be allowed to update backlight hence post unblank
-			 * the backlight would remain 0 (0 is set in blank).
-			 * Hence resetting back to calibration mode value
-			 *
-			 * 2.) If the panel is recovering from ESD attack, then
-			 * the frameworks might not set the backlight post
-			 * unblank, hence the backlight might remain zero. Set
-			 * the backlight in such cases to the unset_bl_level
-			 * value which will be stored prior to ESD recovery
-			 * during blank.
-			 */
-			if (IS_CALIB_MODE_BL(mfd))
-				mdss_fb_set_backlight(mfd, mfd->calib_mode_bl);
-			else if (!mfd->panel_info->mipi.post_init_delay ||
-				cur_panel_dead)
-				mdss_fb_set_backlight(mfd, mfd->unset_bl_level);
-#endif
 			/*
 			 * it blocks the backlight update between unblank and
 			 * first kickoff to avoid backlight turn on before black
@@ -3138,9 +3114,14 @@ static int __mdss_fb_display_thread(void *data)
 				mfd->index);
 
 	while (1) {
-		wait_event(mfd->commit_wait_q,
+		ret = wait_event_interruptible(mfd->commit_wait_q,
 				(atomic_read(&mfd->commits_pending) ||
 				 kthread_should_stop()));
+
+		if (ret) {
+			pr_info("%s: interrupted", __func__);
+			continue;
+		}
 
 		if (kthread_should_stop())
 			break;
@@ -3808,11 +3789,7 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 	int ret = -ENOSYS;
 	struct mdp_buf_sync buf_sync;
 	struct msm_sync_pt_data *sync_pt_data = NULL;
-	struct mdss_overlay_private *mdp5_data = NULL;
-	struct mdss_mdp_ctl *color_ctl = NULL;
 	unsigned int dsi_mode = 0;
-	unsigned int Color_mode = 0;
-	unsigned int CE_mode = 0;
 	struct mdss_panel_data *pdata = NULL;
 
 	if (!info || !info->par)
@@ -3838,10 +3815,6 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 		goto exit;
 
 	__ioctl_transition_dyn_mode_state(mfd, cmd);
-
-	mdp5_data = mfd->mdp.private1;
-	color_ctl = mdp5_data->ctl;
-	pdata = color_ctl->panel_data;
 
 	switch (cmd) {
 	case MSMFB_CURSOR:
@@ -3894,23 +3867,6 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 		}
 
 		ret = mdss_fb_mode_switch(mfd, dsi_mode);
-		break;
-
-	case MSMFB_ENHANCE_SET_GAMMA:
-		if (copy_from_user(&Color_mode, argp, sizeof(Color_mode))) {
-			pr_err("%s: MSMFB_ENHANCE_SET_GAMMA ioctl failed\n", __func__);
-			goto exit;
-		}
-		ret = mdss_panel_set_gamma(pdata, Color_mode);
-
-		break;
-
-	case MSMFB_ENHANCE_SET_CE:
-		if (copy_from_user(&CE_mode, argp, sizeof(CE_mode))) {
-			pr_err("%s: MSMFB_ENHANCE_SET_CE ioctl failed\n", __func__);
-			goto exit;
-		}
-		ret = mdss_panel_set_ce(pdata, CE_mode);
 		break;
 
 	default:
