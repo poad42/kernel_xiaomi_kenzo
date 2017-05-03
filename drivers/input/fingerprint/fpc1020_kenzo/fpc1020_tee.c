@@ -43,13 +43,11 @@
 #include <soc/qcom/scm.h>
 #include <linux/platform_device.h>
 #include <linux/wakelock.h>
-#include <linux/input.h>
-#include <linux/display_state.h>
 #define FPC1020_RESET_LOW_US 1000
 #define FPC1020_RESET_HIGH1_US 100
 #define FPC1020_RESET_HIGH2_US 1250
 #define FPC_TTW_HOLD_TIME 1000
-#define KEY_FINGERPRINT 0x2ee
+
 
 struct vreg_config {
 	char *name;
@@ -70,21 +68,17 @@ struct fpc1020_data {
 	int rst_gpio;
 	struct mutex lock;
 	bool wakeup_enabled;
-        struct input_dev *input_dev;
 };
 
-#ifdef CONFIG_MACH_XIAOMI_KENZO
-int kenzo_fpsensor = 0;
+unsigned int kenzo_fpsensor = 1;
 static int __init setup_kenzo_fpsensor(char *str)
 {
-	if (!strcmp(str, "fpc"))
-		kenzo_fpsensor = 1;
-	else if (!strcmp(str, "gdx"))
+	if (!strncmp(str, "gdx", strlen(str)))
 		kenzo_fpsensor = 2;
-	return 1;
+
+	return kenzo_fpsensor;
 }
 __setup("androidboot.fpsensor=", setup_kenzo_fpsensor);
-#endif
 
 static int vreg_setup(struct fpc1020_data *fpc1020, const char *name,
 		      bool enable)
@@ -244,37 +238,6 @@ static const struct attribute_group attribute_group = {
 	.attrs = attributes,
 };
 
-static int fpc1020_input_init(struct fpc1020_data * fpc1020)
-{
-	int ret;
-
-	fpc1020->input_dev = input_allocate_device();
-	if (!fpc1020->input_dev) {
-		pr_err("fingerprint input boost allocation is fucked - 1 star\n");
-		ret = -ENOMEM;
-		goto exit;
-	}
-
-	fpc1020->input_dev->name = "fpc1020";
-	fpc1020->input_dev->evbit[0] = BIT(EV_KEY);
-
-	set_bit(KEY_FINGERPRINT, fpc1020->input_dev->keybit);
-
-	ret = input_register_device(fpc1020->input_dev);
-	if (ret) {
-		pr_err("fingerprint boost input registration is fucked - fixpls\n");
-		goto err_free_dev;
-	}
-
-	return 0;
-
-err_free_dev:
-	input_free_device(fpc1020->input_dev);
-exit:
-	return ret;
-}
-
-
 static irqreturn_t fpc1020_irq_handler(int irq, void *handle)
 {
 	struct fpc1020_data *fpc1020 = handle;
@@ -289,15 +252,6 @@ static irqreturn_t fpc1020_irq_handler(int irq, void *handle)
 	}
 
 	sysfs_notify(&fpc1020->dev->kobj, NULL, dev_attr_irq.attr.name);
- 
-      if (!is_display_on()) {
-                sched_set_boost(1);
- 		input_report_key(fpc1020->input_dev, KEY_FINGERPRINT, 1);
- 		input_sync(fpc1020->input_dev);
- 		input_report_key(fpc1020->input_dev, KEY_FINGERPRINT, 0);
- 		input_sync(fpc1020->input_dev);
-                sched_set_boost(0);
- 	}
 
 	return IRQ_HANDLED;
 }
@@ -330,19 +284,13 @@ static int fpc1020_probe(struct platform_device* pdev)
 	struct device_node *np = dev->of_node;
 	struct fpc1020_data *fpc1020;
 
-#ifdef CONFIG_MACH_XIAOMI_KENZO
 	if (kenzo_fpsensor != 1) {
 		pr_err("board no fpc fpsensor\n");
 		return -ENODEV;
 	}
-#endif
 
 	fpc1020 = devm_kzalloc(dev, sizeof(*fpc1020),
 						    GFP_KERNEL);
-         rc = fpc1020_input_init(fpc1020);
- 	if (rc)
- 		goto exit;
-
 	if (!fpc1020) {
 		dev_err(dev,
 			"failed to allocate memory for struct fpc1020_data\n");
@@ -420,8 +368,6 @@ exit:
 static int fpc1020_remove(struct platform_device* pdev)
 {
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(&pdev->dev);
-       if (fpc1020->input_dev != NULL)
- 		input_free_device(fpc1020->input_dev);
 
 	sysfs_remove_group(&fpc1020->dev->kobj, &attribute_group);
 	mutex_destroy(&fpc1020->lock);
@@ -431,27 +377,9 @@ static int fpc1020_remove(struct platform_device* pdev)
 	return 0;
 }
 
-static void set_fingerprintd_nice(int nice)
- {
- 	struct task_struct *p;
- 
- 	read_lock(&tasklist_lock);
- 	for_each_process(p) {
- 		if (!memcmp(p->comm, "fingerprintd", 13)) {
- 			set_user_nice(p, nice);
- 			break;
- 		}
- 	}
- 	read_unlock(&tasklist_lock);
- }
-
 static int fpc1020_suspend(struct platform_device* pdev, pm_message_t mesg)
 {
-	/* Escalate fingerprintd priority when screen is off */
- 		set_fingerprintd_nice(-1);
-    
-    return 0;
-    
+	return 0;
 }
 
 static int fpc1020_resume(struct platform_device* pdev)
