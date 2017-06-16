@@ -210,6 +210,7 @@ static VOS_STATUS hdd_parse_ese_beacon_req(tANI_U8 *pValue,
 #define WLAN_NLINK_CESIUM 30
 #endif
 
+
 //wait time for beacon miss rate.
 #define BCN_MISS_RATE_TIME 500
 
