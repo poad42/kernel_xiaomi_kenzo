@@ -363,7 +363,7 @@ static void a5xx_protect_init(struct adreno_device *adreno_dev)
 	adreno_set_protected_registers(adreno_dev, &index, 0xE70, 4);
 
 	/* UCHE registers */
-	adreno_set_protected_registers(adreno_dev, &index, 0xE87, 4);
+	adreno_set_protected_registers(adreno_dev, &index, 0xE80, ilog2(16));
 
 	/* SMMU registers */
 	iommu_regs = kgsl_mmu_get_prot_regs(&device->mmu);
@@ -1434,6 +1434,12 @@ static void a5xx_start(struct adreno_device *adreno_dev)
 		val = (val | 1 << 25);
 		kgsl_regwrite(device, A5XX_SP_DBG_ECO_CNTL, val);
 	}
+
+	/*
+	 * Disable UCHE global filter as SP can invalidate/flush
+	 * independently
+	 */
+	kgsl_regwrite(device, A5XX_UCHE_MODE_CNTL, BIT(29));
 
 	/* Set the USE_RETENTION_FLOPS chicken bit */
 	kgsl_regwrite(device, A5XX_CP_CHICKEN_DBG, 0x02000000);
