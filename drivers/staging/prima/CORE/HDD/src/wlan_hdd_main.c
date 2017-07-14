@@ -210,7 +210,6 @@ static VOS_STATUS hdd_parse_ese_beacon_req(tANI_U8 *pValue,
 #define WLAN_NLINK_CESIUM 30
 #endif
 
-
 //wait time for beacon miss rate.
 #define BCN_MISS_RATE_TIME 500
 
@@ -11981,7 +11980,7 @@ int hdd_wlan_startup(struct device *dev )
       if(!VOS_IS_STATUS_SUCCESS( status ))
       {
          hddLog(VOS_TRACE_LEVEL_FATAL,"%s: vos_watchdog_open failed",__func__);
-         goto err_wdclose;
+         goto err_config;
       }
    }
 
