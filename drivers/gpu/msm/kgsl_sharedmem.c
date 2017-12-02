@@ -638,7 +638,6 @@ static int kgsl_do_cache_op(struct page *page, void *addr,
 
 			return 0;
 		}
-
 		addr = page_address(page);
 	}
 
