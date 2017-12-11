@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 VERSION = 3
 PATCHLEVEL = 10
 SUBLEVEL = 108
@@ -1462,22 +1461,3 @@ FORCE:
 # Declare the contents of the .PHONY variable as phony.  We keep that
 # information in a variable so we can use it in if_changed and friends.
 .PHONY: $(PHONY)
-=======
-default: all
-
-KBUILD_OPTIONS := WLAN_ROOT=$(PWD)
-KBUILD_OPTIONS += MODNAME=wlan
-
-all::
-	$(MAKE) -C $(KERNEL_SOURCE) $(KBUILD_OPTIONS) $(EXTRA_CFLAGS) ARCH=$(ARCH) \
-		SUBDIRS=$(CURDIR) CC=${CC} modules
-
-modules_install:
-	$(MAKE) INSTALL_MOD_STRIP=1 -C $(KERNEL_SRC) M=$(shell pwd) modules_install
-
-clean::
-	rm -f *.o *.ko *.mod.c *.mod.o *~ .*.cmd Module.symvers
-	rm -rf .tmp_versions
-
-
->>>>>>> 5a5a06543e49e1832628068a11b2dca64b7a6420
